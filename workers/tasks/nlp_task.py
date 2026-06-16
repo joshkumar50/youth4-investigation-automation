@@ -37,6 +37,8 @@ THREAT_KEYWORDS = {
     "smuggle", "launder", "bribe", "corrupt", "fraud", "trafficking",
     "terror", "hack", "breach", "blackmail", "extort", "hawala", "shell",
     "money", "crore", "transfer", "account", "offshore", "scam", "evade",
+    "cargo", "secure number", "intercepted", "apprehended", "suspect",
+    "surveillance", "godown", "confiscated",
 }
 
 _nlp = None
@@ -139,9 +141,9 @@ def extract_entities_task(evidence_id: str, case_id: str, text: str) -> list[dic
 def _map_spacy_label(label: str) -> str:
     mapping = {
         "PERSON": "PERSON",
-        "ORG": "ORGANIZATION",
-        "GPE": "LOCATION",
-        "LOC": "LOCATION",
+        "ORG": "ORG",
+        "GPE": "GPE",
+        "LOC": "GPE",
         "DATE": "DATE",
         "TIME": "DATE",
         "EVENT": "EVENT",
