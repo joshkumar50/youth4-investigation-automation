@@ -176,21 +176,7 @@ investigation-intelligence-platform/
 └── docker-compose.yml # Full stack orchestration
 ```
 
----
 
-## 🎭 Demo Guide
-
-See [DEMO_GUIDE.md](DEMO_GUIDE.md) for the full 3-minute demo walkthrough.
-
-**Demo Case: Operation Nightfall**
-- 12 evidence files (PDFs, images, chats, video, documents)
-- 22 extracted entities
-- 15 timeline events
-- 15 entity relationships
-- 3 AI-generated threat insights
-- Pre-built investigation report
-
----
 
 ## 📈 Impact Metrics
 
@@ -229,7 +215,6 @@ pytest tests/ -v --cov=app
 
 - [Architecture Guide](ARCHITECTURE.md)
 - [API Reference](API.md)
-- [Demo Guide](DEMO_GUIDE.md)
 - [Contributing Guide](CONTRIBUTING.md)
 
 ---
