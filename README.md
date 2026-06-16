@@ -1,7 +1,7 @@
 # Investigation Intelligence Platform (IIP)
 
 <div align="center">
-  <img src="docs/screenshots/banner.png" alt="IIP Banner" width="100%" />
+
   
   **AI-Powered Digital Evidence Investigation Platform**
   
