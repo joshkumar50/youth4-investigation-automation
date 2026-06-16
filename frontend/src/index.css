@@ -1,0 +1,199 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: 59 130 246;
+    --color-accent: 139 92 246;
+    --surface-50: #f8fafc;
+    --surface-100: #f1f5f9;
+    --scrollbar-color: #f1f5f9;
+    --scrollbar-thumb: #cbd5e1;
+  }
+
+  * {
+    @apply border-white/10;
+  }
+
+  body {
+    background-color: var(--surface-50);
+    color: theme('colors.slate.900');
+    @apply antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--scrollbar-color);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+
+  /* Selection */
+  ::selection {
+    background: rgba(59, 130, 246, 0.3);
+    color: white;
+  }
+}
+
+@layer components {
+  /* Glass card */
+  .card {
+    @apply bg-white/80 backdrop-blur-md border border-slate-200/60 rounded-xl shadow-sm;
+  }
+
+  .card-hover {
+    @apply card transition-all duration-200 hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5 relative cursor-pointer;
+  }
+
+  /* Glow button */
+  .btn-primary {
+    @apply relative overflow-hidden px-5 py-2.5 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-500 hover:to-indigo-500 text-white font-semibold text-sm 
+           rounded-lg transition-all duration-200 shadow-sm hover:shadow-[0_0_15px_rgba(59,130,246,0.5)]
+           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+  }
+
+  .btn-secondary {
+    @apply px-5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm 
+           rounded-lg border border-slate-300 hover:border-slate-400 transition-all duration-200 shadow-sm
+           focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2;
+  }
+
+  .btn-danger {
+    @apply px-5 py-2.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 hover:text-red-300 font-semibold text-sm 
+           rounded-lg border border-red-500/30 hover:border-red-500/60 transition-all duration-200;
+  }
+
+  .btn-ghost {
+    @apply px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium text-sm 
+           rounded-lg transition-all duration-150;
+  }
+
+  /* Input */
+  .input {
+    @apply w-full px-4 py-2.5 bg-white border border-slate-300 rounded-lg text-slate-900 
+           placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 
+           focus:border-primary-500 transition-all duration-200 shadow-sm;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+
+  .badge-critical { @apply badge bg-red-100 text-red-700 border border-red-200; }
+  .badge-high { @apply badge bg-orange-100 text-orange-700 border border-orange-200; }
+  .badge-medium { @apply badge bg-amber-100 text-amber-700 border border-amber-200; }
+  .badge-low { @apply badge bg-emerald-100 text-emerald-700 border border-emerald-200; }
+  .badge-info { @apply badge bg-primary-100 text-primary-700 border border-primary-200; }
+  .badge-neutral { @apply badge bg-slate-100 text-slate-700 border border-slate-200; }
+
+  /* Progress bar */
+  .progress-bar {
+    @apply h-1.5 rounded-full bg-slate-200 overflow-hidden;
+  }
+  .progress-fill {
+    @apply h-full rounded-full bg-gradient-to-r from-primary-500 to-violet-500 transition-all duration-700 ease-out;
+  }
+
+  /* Skeleton loading */
+  .skeleton {
+    @apply animate-shimmer bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 
+           bg-[length:200%_100%] rounded-lg;
+  }
+
+  /* Section label */
+  .section-label {
+    @apply text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3;
+  }
+
+  /* Stat card */
+  .stat-card {
+    @apply card p-5 flex flex-col gap-2;
+  }
+
+  /* Nav item */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+           text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer;
+  }
+  .nav-item.active {
+    @apply text-primary-700 bg-primary-50 border border-primary-100;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    @apply fixed left-0 top-0 h-full w-64 bg-white border-r border-slate-200 
+           flex flex-col z-50 shadow-sm;
+  }
+
+  /* Topbar */
+  .topbar {
+    @apply fixed top-0 right-0 h-16 bg-white border-b border-slate-200 
+           flex items-center justify-between px-6 z-40 shadow-sm;
+  }
+
+  /* Page */
+  .page {
+    @apply ml-64 mt-16 p-6 min-h-screen;
+  }
+
+  /* Table */
+  .data-table {
+    @apply w-full text-sm;
+  }
+  .data-table thead tr {
+    @apply border-b border-slate-200/50;
+  }
+  .data-table thead th {
+    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-slate-500;
+  }
+  .data-table tbody tr {
+    @apply border-b border-slate-200/50 hover:bg-white/[0.02] transition-colors duration-100;
+  }
+  .data-table tbody td {
+    @apply px-4 py-3 text-slate-700;
+  }
+
+  /* Timeline */
+  .timeline-item {
+    @apply relative pl-10 pb-6;
+  }
+  .timeline-item::before {
+    content: '';
+    @apply absolute left-3.5 top-5 bottom-0 w-px bg-slate-300/50;
+  }
+  .timeline-item:last-child::before {
+    display: none;
+  }
+  .timeline-dot {
+    @apply absolute left-0 top-1 w-7 h-7 rounded-full border-2 border-slate-200 
+           bg-white flex items-center justify-center;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-indigo-600;
+  }
+
+  .border-gradient {
+    background: linear-gradient(var(--surface-900), var(--surface-900)) padding-box,
+                linear-gradient(135deg, #3b82f6, #8b5cf6) border-box;
+    border: 1px solid transparent;
+  }
+
+  .grid-pattern {
+    /* Background pattern removed for cleaner look */
+  }
+}

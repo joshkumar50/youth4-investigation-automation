@@ -1,0 +1,40 @@
+celery>=5.4.0
+redis>=5.0.4
+sqlalchemy>=2.0.30
+psycopg2-binary>=2.9.9
+alembic>=1.13.1
+pydantic>=2.7.0
+pydantic-settings>=2.2.1
+
+# OCR & Document Processing
+pytesseract>=0.3.10
+Pillow>=10.3.0
+PyMuPDF>=1.24.0
+python-docx>=1.1.2
+
+# NLP & AI
+spacy>=3.7.4
+sentence-transformers>=3.0.1
+chromadb>=0.5.0
+networkx>=3.3
+numpy>=1.26.4
+
+# MinIO
+minio>=7.2.7
+
+# HTTP
+httpx>=0.27.0
+tenacity>=8.3.0
+
+# Utils
+python-dotenv>=1.0.1
+structlog>=24.1.0
+
+# Report
+reportlab>=4.2.0
+
+# Video metadata
+# ffmpeg-python>=0.2.0
+
+# Monitoring
+flower>=2.0.0

@@ -1,0 +1,239 @@
+version: "3.9"
+
+services:
+  # ──────────────────────────────────────
+  # PostgreSQL Database
+  # ──────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: iip_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-investigation_db}
+      POSTGRES_USER: ${POSTGRES_USER:-iip_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iip_secret_2024}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iip_user} -d ${POSTGRES_DB:-investigation_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ──────────────────────────────────────
+  # Redis (Cache + Celery Broker)
+  # ──────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: iip_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-iip_redis_2024}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-iip_redis_2024}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ──────────────────────────────────────
+  # MinIO Object Storage
+  # ──────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: iip_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-iip_minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-iip_minio_secret_2024}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ──────────────────────────────────────
+  # ChromaDB Vector Database
+  # ──────────────────────────────────────
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: iip_chromadb
+    restart: unless-stopped
+    environment:
+      CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER: chromadb.auth.token.TokenConfigServerAuthCredentialsProvider
+      CHROMA_SERVER_AUTH_CREDENTIALS: ${CHROMA_TOKEN:-iip_chroma_token}
+      CHROMA_SERVER_AUTH_PROVIDER: chromadb.auth.token.TokenAuthServerProvider
+    volumes:
+      - chromadb_data:/chroma/chroma
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ──────────────────────────────────────
+  # Ollama (LLM)
+  # ──────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: iip_ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_KEEP_ALIVE: "24h"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+
+  # ──────────────────────────────────────
+  # FastAPI Backend
+  # ──────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: iip_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-iip_user}:${POSTGRES_PASSWORD:-iip_secret_2024}@postgres:5432/${POSTGRES_DB:-investigation_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-iip_redis_2024}@redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-iip_minio}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-iip_minio_secret_2024}
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      CHROMA_TOKEN: ${CHROMA_TOKEN:-iip_chroma_token}
+      OLLAMA_BASE_URL: http://ollama:11434
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-super_secret_jwt_key_change_in_prod_2024}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - ./scripts:/scripts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ──────────────────────────────────────
+  # Celery Worker
+  # ──────────────────────────────────────
+  worker:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    container_name: iip_worker
+    restart: unless-stopped
+    command: celery -A celery_app worker --loglevel=info --concurrency=4 -Q evidence_processing,ai_tasks,graph_tasks
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-iip_user}:${POSTGRES_PASSWORD:-iip_secret_2024}@postgres:5432/${POSTGRES_DB:-investigation_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-iip_redis_2024}@redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-iip_minio}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-iip_minio_secret_2024}
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      CHROMA_TOKEN: ${CHROMA_TOKEN:-iip_chroma_token}
+      OLLAMA_BASE_URL: http://ollama:11434
+      SPACY_MODEL: ${SPACY_MODEL:-en_core_web_sm}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./workers:/app
+      - ./ai:/app/ai
+
+  # ──────────────────────────────────────
+  # Celery Beat Scheduler
+  # ──────────────────────────────────────
+  celery-beat:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    container_name: iip_celery_beat
+    restart: unless-stopped
+    command: celery -A celery_app beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-iip_user}:${POSTGRES_PASSWORD:-iip_secret_2024}@postgres:5432/${POSTGRES_DB:-investigation_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-iip_redis_2024}@redis:6379/0
+    depends_on:
+      - worker
+
+  # ──────────────────────────────────────
+  # Flower (Celery monitoring)
+  # ──────────────────────────────────────
+  flower:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    container_name: iip_flower
+    restart: unless-stopped
+    command: celery -A celery_app flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin123}
+    ports:
+      - "5555:5555"
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD:-iip_redis_2024}@redis:6379/0
+    depends_on:
+      - worker
+
+  # ──────────────────────────────────────
+  # React Frontend
+  # ──────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+        VITE_WS_BASE_URL: ${VITE_WS_BASE_URL:-ws://localhost:8000}
+    container_name: iip_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  chromadb_data:
+  ollama_data:
+
+networks:
+  default:
+    name: iip_network
