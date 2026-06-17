@@ -1,103 +1,110 @@
 # Architecture — Investigation Intelligence Platform
 
-## System Overview
+## High-Level Design (HLD)
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                         PRESENTATION LAYER                        │
-│                                                                    │
-│   React 18 + TypeScript + Vite + Tailwind                        │
-│   React Query (server state) + Zustand (client state)             │
-│   Framer Motion (animations) + Recharts (charts) + D3 (graph)    │
-└──────────────────────────────┬───────────────────────────────────┘
-                               │ REST API (HTTP/JSON)
-                               │ Auto token refresh interceptor
-┌──────────────────────────────▼───────────────────────────────────┐
-│                           API GATEWAY                             │
-│                                                                    │
-│   FastAPI 0.111 — async Python API framework                     │
-│   • JWT Authentication (python-jose + bcrypt)                    │
-│   • Request validation (Pydantic v2)                              │
-│   • CORS middleware                                               │
-│   • GZip compression                                              │
-│   • Structured logging (structlog)                                │
-│   • Custom exception handlers                                     │
-│   • OpenAPI docs (/docs)                                          │
-└────────┬──────────────────────────────────┬──────────────────────┘
-         │                                  │
-┌────────▼────────┐               ┌─────────▼──────────────────────┐
-│  Business Logic │               │        TASK QUEUE               │
-│  Layer          │               │                                  │
-│                 │   Publishes   │   Celery 5 + Redis 7            │
-│ • AuthService   │ ──────────►  │   3 Queues:                      │
-│ • CaseService   │               │   • evidence_processing          │
-│ • EvidenceSvc   │               │   • ai_tasks                    │
-│ • CopilotSvc    │               │   • graph_tasks                 │
-│ • ReportService │               │                                  │
-└────────┬────────┘               └─────────┬──────────────────────┘
-         │                                  │
-┌────────▼──────────────────────────────────▼──────────────────────┐
-│                       AI / ML PIPELINE                            │
-│                                                                    │
-│  Worker 1: OCR Task                                               │
-│    Tesseract OCR → PyMuPDF → EXIF extraction → Chat parser       │
-│                                                                    │
-│  Worker 2: NLP Task                                               │
-│    spaCy en_core_web_sm → Regex patterns → Threat scoring        │
-│                                                                    │
-│  Worker 3: Embedding Task                                         │
-│    Sentence Transformers (all-MiniLM-L6-v2) → ChromaDB           │
-│                                                                    │
-│  Worker 4: Timeline Task                                          │
-│    Temporal extraction → Date parsing → Event classification     │
-│                                                                    │
-│  Worker 5: Graph Task                                             │
-│    Entity co-occurrence → Relationship mapping → NetworkX         │
-│                                                                    │
-│  Worker 6: AI Summary Task                                        │
-│    Ollama/Llama3 → RAG with ChromaDB → Structured insights       │
-└────────┬──────────────────────────────────────────────────────────┘
-         │
-┌────────▼──────────────────────────────────────────────────────────┐
-│                      PERSISTENCE LAYER                             │
-│                                                                    │
-│  PostgreSQL 16        │  MinIO                │  ChromaDB          │
-│  (primary store)      │  (file storage)       │  (vector store)    │
-│  • users              │  • evidence files     │  • text embeddings │
-│  • cases              │  • reports            │  • semantic search │
-│  • evidence           │                       │                    │
-│  • entities           │  Redis 7              │                    │
-│  • relationships      │  (message broker)     │                    │
-│  • timeline_events    │  • Celery queue       │                    │
-│  • investigation_notes│  • result backend     │                    │
-└───────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    %% Colors %%
+    classDef client fill:#f9f9f9,stroke:#333,stroke-width:2px;
+    classDef gateway fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    classDef service fill:#ffffff,stroke:#0d47a1,stroke-width:2px,color:#0d47a1;
+    classDef db fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,shape:cylinder;
+    classDef queue fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef worker fill:#f3e5f5,stroke:#4a148c,stroke-width:2px;
+
+    User([Investigator / Admin]):::client
+
+    subgraph Presentation["Presentation Layer"]
+        WebApp["React Web App\n(Vite + Tailwind)"]:::client
+    end
+
+    User --> WebApp
+
+    API["API Gateway\n(FastAPI)"]:::gateway
+
+    WebApp -- "REST API" --> API
+
+    subgraph CoreServices["Main Services (Blue)"]
+        direction TB
+        AuthService["Auth Service\n(JWT)"]:::service
+        CaseService["Case Management\n(Isolated Workspaces)"]:::service
+        EvidenceService["Evidence Service\n(Uploads & Triggers)"]:::service
+        ReportService["Report Engine\n(PDF Generation)"]:::service
+        CopilotService["Copilot Assistant\n(Llama 3 + RAG)"]:::service
+    end
+
+    API --> AuthService
+    API --> CaseService
+    API --> EvidenceService
+    API --> ReportService
+    API --> CopilotService
+
+    subgraph Databases["Databases (Green)"]
+        direction TB
+        Postgres[(PostgreSQL)]:::db
+        MinIO[(MinIO Object Storage)]:::db
+        ChromaDB[(ChromaDB Vector DB)]:::db
+    end
+
+    AuthService --> Postgres
+    CaseService --> Postgres
+    EvidenceService --> Postgres
+    EvidenceService --> MinIO
+    CopilotService --> ChromaDB
+
+    Redis["Redis\nCache & Message Broker"]:::queue
+    API --> Redis
+
+    subgraph AIPipeline["AI Celery Workers"]
+        direction TB
+        OCRWorker["OCR & Parsing\n(Tesseract/PyMuPDF)"]:::worker
+        NLPWorker["NLP & Entity Extraction\n(spaCy + Regex)"]:::worker
+        GraphWorker["Relationship Mapper\n(NetworkX)"]:::worker
+        LLMWorker["LLM Inference\n(Ollama)"]:::worker
+    end
+
+    Redis --> OCRWorker
+    Redis --> NLPWorker
+    Redis --> GraphWorker
+    Redis --> LLMWorker
+
+    OCRWorker --> Postgres
+    NLPWorker --> Postgres
+    GraphWorker --> Postgres
+    LLMWorker --> ChromaDB
 ```
 
-## Data Flow
+## Low-Level Design (LLD) - Data Processing Flow
 
-```
-Evidence Upload
-    │
-    ▼
-MinIO Storage (file saved)
-    │
-    ▼
-Evidence DB Record Created (status: PENDING)
-    │
-    ▼
-Celery Task Dispatched
-    │
-    ├── OCR Task → extracted_text saved to DB
-    │       │
-    │       ├── NLP Task → entities saved to entities table
-    │       │
-    │       ├── Embedding Task → text chunks → ChromaDB
-    │       │
-    │       ├── Timeline Task → events saved to timeline_events
-    │       │
-    │       └── Graph Task → relationships saved to entity_relationships
-    │
-    └── Evidence status → COMPLETED
+```mermaid
+flowchart TD
+    classDef start fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    classDef process fill:#ffffff,stroke:#0d47a1,stroke-width:2px;
+    classDef storage fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,shape:cylinder;
+    
+    Start((Evidence Upload)):::start --> SaveS3[Upload to MinIO Storage]:::process
+    SaveS3 --> MinIO[(MinIO)]:::storage
+    SaveS3 --> CreateDB[Create DB Record: PENDING]:::process
+    CreateDB --> PG[(Postgres)]:::storage
+    CreateDB --> TriggerQueue[Dispatch to Celery Queue]:::process
+    
+    TriggerQueue --> |evidence_processing| OCRTask[OCR & Extraction Task]:::process
+    
+    OCRTask --> HasText{Text Extracted?}
+    HasText -->|Yes| NLPTask[NLP Task\n(spaCy NER)]:::process
+    HasText -->|No| FailTask[Mark Record Failed]:::process
+    
+    NLPTask --> ExtractEntities[Extract Persons, Phones, Orgs, Money]:::process
+    ExtractEntities --> EmbeddingTask[Embeddings Task\n(Sentence Transformers)]:::process
+    EmbeddingTask --> Chroma[(ChromaDB)]:::storage
+    
+    ExtractEntities --> TimelineTask[Timeline Extraction Task]:::process
+    TimelineTask --> GraphTask[Relationship Graphing Task]:::process
+    
+    GraphTask --> ThreatScoring[Calculate Threat Score\n(Financial + Comms)]:::process
+    ThreatScoring --> MatchGlobal[Compute Global Cross-Case Links]:::process
+    MatchGlobal --> MarkComplete[Update DB Record: COMPLETED]:::process
+    MarkComplete --> PG
 ```
 
 ## Key Design Patterns
