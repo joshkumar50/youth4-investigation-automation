@@ -91,14 +91,15 @@ FastAPI Backend
 |--------|-------------|
 | 🔐 Auth | JWT authentication with role-based access |
 | 📊 Dashboard | Real-time investigation metrics & impact |
-| 📂 Case Management | Full CRUD with priority/status tracking |
+| 📂 Case Management | Isolated workspaces per case with secure deletion & impact analysis |
 | 📤 Evidence Upload | Multi-file drag-and-drop with auto-processing |
 | 🔍 OCR Extraction | Tesseract + PyMuPDF with EXIF/metadata |
 | 🏷️ Categorization | ML-based evidence categorization |
-| 👤 Entity Extraction | spaCy NER + regex (persons, phones, emails, URLs) |
+| 👤 Entity Extraction | spaCy NER + regex (Global support for INR, Persons, Phones, Emails) |
 | 📅 Timeline | Automatic temporal event reconstruction |
 | 🕸️ Relationship Graph | Entity co-occurrence network visualization |
-| ⚠️ Threat Intelligence | Composite threat scoring & prioritization |
+| 🔗 Cross-Case Matching | Global match indicators for entities spanning multiple isolated cases |
+| ⚠️ Threat Intelligence | Composite threat scoring & prioritization (Financial & Communication networks) |
 | 🤖 Copilot | AI-powered investigation assistant (Llama 3 + RAG) |
 | 📄 Report Export | Professional PDF investigation reports |
 

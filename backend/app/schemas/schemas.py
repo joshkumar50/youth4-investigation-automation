@@ -162,6 +162,11 @@ class EvidenceStatusResponse(BaseModel):
 # Entities
 # ─────────────────────────────────────────
 
+class CrossCaseLink(BaseModel):
+    id: uuid.UUID
+    title: str
+    case_number: str
+
 class EntityResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -177,6 +182,7 @@ class EntityResponse(BaseModel):
     is_primary: bool
     threat_relevance: float
     created_at: datetime
+    cross_case_links: list[CrossCaseLink] = []
 
 
 class EntitySummary(BaseModel):

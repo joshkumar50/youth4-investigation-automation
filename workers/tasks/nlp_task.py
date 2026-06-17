@@ -24,7 +24,7 @@ PATTERNS = {
         r"(?::\d+)?(?:/[-\w%!$&'()*+,./:;=?@_~]*)?",
         re.IGNORECASE,
     ),
-    "MONEY": re.compile(r"[\$€£¥][\d,]+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?\s?(?:USD|EUR|GBP|INR|AED)", re.IGNORECASE),
+    "MONEY": re.compile(r"[\$€£¥₹]\s?[\d,\.]+|(?:USD|EUR|GBP|INR|AED)\s?[\d,\.]+(?:\s?(?:Crores|Lakhs|Million|Billion|K|M|B))?|[\d,\.]+(?:\s?(?:Crores|Lakhs|Million|Billion|K|M|B))?\s?(?:USD|EUR|GBP|INR|AED)", re.IGNORECASE),
     "ID_NUMBER": re.compile(r"\b(?:[A-Z]{1,3}[-\s]?)?\d{6,12}\b"),
     "VEHICLE": re.compile(r"\b[A-Z]{2,3}[\s\-]?\d{2,4}[\s\-]?[A-Z]{0,4}\b"),
     "SUSPICIOUS_TERM": re.compile(r"\b(hawala|shell company|bribe|laundering|crores?|kickback|fraud)\b", re.IGNORECASE),
@@ -100,7 +100,7 @@ def extract_entities_task(evidence_id: str, case_id: str, text: str) -> list[dic
     # ── Regex patterns ──
     for entity_type, pattern in PATTERNS.items():
         matches = pattern.findall(text[:200000])
-        for match in set(matches[:50]):  # Deduplicate, limit
+        for match in set(matches[:500]):  # Deduplicate, limit
             match_str = match.strip()
             if len(match_str) < 4:
                 continue
@@ -134,16 +134,16 @@ def extract_entities_task(evidence_id: str, case_id: str, text: str) -> list[dic
             unique_entities.append(e)
 
     # Persist to DB
-    _save_entities(evidence_id, case_id, unique_entities[:200])
+    _save_entities(evidence_id, case_id, unique_entities[:2000])
     return unique_entities
 
 
 def _map_spacy_label(label: str) -> str:
     mapping = {
         "PERSON": "PERSON",
-        "ORG": "ORG",
-        "GPE": "GPE",
-        "LOC": "GPE",
+        "ORG": "ORGANIZATION",
+        "GPE": "LOCATION",
+        "LOC": "LOCATION",
         "DATE": "DATE",
         "TIME": "DATE",
         "EVENT": "EVENT",

@@ -96,6 +96,9 @@ export const evidenceApi = {
   timeline: (caseId: string) => apiClient.get(`/api/v1/cases/${caseId}/timeline`).then(r => r.data),
   graph: (caseId: string) => apiClient.get(`/api/v1/cases/${caseId}/graph`).then(r => r.data),
   threats: (caseId: string) => apiClient.get(`/api/v1/cases/${caseId}/threats`).then(r => r.data),
+  reprocess: (evidenceId: string) => apiClient.post(`/api/v1/evidence/${evidenceId}/reprocess`).then(r => r.data),
+  getImpact: (evidenceId: string) => apiClient.get(`/api/v1/evidence/${evidenceId}/impact`).then(r => r.data),
+  delete: (evidenceId: string) => apiClient.delete(`/api/v1/evidence/${evidenceId}`).then(r => r.data),
 }
 
 // Copilot

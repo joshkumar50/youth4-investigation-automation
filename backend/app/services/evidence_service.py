@@ -95,9 +95,11 @@ class EvidenceService:
         # Compute SHA-256 hash
         file_hash = hashlib.sha256(file_data).hexdigest()
 
-        # Check for duplicates in the same case
-        result = await self.db.execute(select(Evidence.id).where(Evidence.case_id == case_id, Evidence.file_hash == file_hash).limit(1))
-        is_duplicate = result.scalar() is not None
+        # Check for duplicates across ALL cases (Global duplicate check)
+        result = await self.db.execute(select(Evidence.case_id).where(Evidence.file_hash == file_hash).limit(1))
+        existing_case_id = result.scalar()
+        is_duplicate_in_same_case = existing_case_id == case_id
+        is_global_duplicate = existing_case_id is not None and existing_case_id != case_id
 
         # Upload to MinIO
         storage_path = await self.storage.upload_file(
@@ -107,7 +109,7 @@ class EvidenceService:
             case_id=str(case_id),
         )
 
-        status = ProcessingStatus.DUPLICATE if is_duplicate else ProcessingStatus.PENDING
+        status = ProcessingStatus.DUPLICATE if is_duplicate_in_same_case else ProcessingStatus.PENDING
 
         # Create DB record
         safe_filename = f"{uuid.uuid4()}_{filename}"
@@ -125,12 +127,18 @@ class EvidenceService:
         )
         evidence = await self.repo.create(evidence)
 
-        # Trigger async processing pipeline only if not duplicate
+        # Trigger async processing pipeline only if not duplicate in the SAME case
         task_id = None
-        if not is_duplicate:
+        if not is_duplicate_in_same_case:
             task_id = await self._trigger_processing(evidence.id, case_id, storage_path, file_type)
 
-        logger.info("Evidence uploaded", evidence_id=str(evidence.id), case_id=str(case_id), duplicate=is_duplicate)
+        logger.info("Evidence uploaded", evidence_id=str(evidence.id), case_id=str(case_id), duplicate=is_duplicate_in_same_case)
+        
+        message = "Evidence uploaded successfully. Processing started."
+        if is_duplicate_in_same_case:
+            message = "Evidence duplicate skipped."
+        elif is_global_duplicate:
+            message = f"Warning: This file already exists in another case. Proceeding with extraction for this case."
 
         return EvidenceUploadResponse(
             evidence_id=evidence.id,
@@ -138,7 +146,7 @@ class EvidenceService:
             size_bytes=len(file_data),
             processing_status=status,
             task_id=task_id or "",
-            message="Evidence duplicate skipped." if is_duplicate else "Evidence uploaded successfully. Processing started.",
+            message=message,
         )
 
     async def _trigger_processing(
@@ -163,6 +171,76 @@ class EvidenceService:
         except Exception as e:
             logger.warning("Celery not available, evidence queued", error=str(e))
             return f"mock-task-{evidence_id}"
+
+    async def reprocess_evidence(self, evidence_id: uuid.UUID) -> str:
+        """Clear existing extracted data and re-run the pipeline."""
+        from sqlalchemy import text
+        evidence = await self.repo.get_by_id(evidence_id)
+        if not evidence:
+            raise NotFoundError("Evidence", str(evidence_id))
+            
+        # 1. Delete dependent relationships
+        await self.db.execute(
+            text("""
+            DELETE FROM entity_relationships 
+            WHERE source_entity_id IN (SELECT id FROM entities WHERE evidence_id = :ev_id)
+               OR target_entity_id IN (SELECT id FROM entities WHERE evidence_id = :ev_id)
+            """),
+            {"ev_id": evidence_id}
+        )
+        
+        # 2. Delete timeline events and entities
+        await self.db.execute(text("DELETE FROM timeline_events WHERE evidence_id = :ev_id"), {"ev_id": evidence_id})
+        await self.db.execute(text("DELETE FROM entities WHERE evidence_id = :ev_id"), {"ev_id": evidence_id})
+        
+        # 3. Reset status
+        evidence.processing_status = ProcessingStatus.PENDING
+        evidence.processing_error = None
+        evidence.extracted_text = None
+        await self.db.commit()
+        
+        # 4. Trigger again
+        return await self._trigger_processing(evidence.id, evidence.case_id, evidence.storage_path, evidence.file_type)
+
+    async def get_evidence_impact(self, evidence_id: uuid.UUID) -> dict:
+        """Calculate the exact number of entities, relationships, and events that will be lost if this evidence is deleted."""
+        from sqlalchemy import text
+        entities_count = await self.db.scalar(text("SELECT count(*) FROM entities WHERE evidence_id = :ev_id"), {"ev_id": evidence_id})
+        timeline_count = await self.db.scalar(text("SELECT count(*) FROM timeline_events WHERE evidence_id = :ev_id"), {"ev_id": evidence_id})
+        relations_count = await self.db.scalar(
+            text("""
+            SELECT count(*) FROM entity_relationships 
+            WHERE source_entity_id IN (SELECT id FROM entities WHERE evidence_id = :ev_id)
+               OR target_entity_id IN (SELECT id FROM entities WHERE evidence_id = :ev_id)
+            """),
+            {"ev_id": evidence_id}
+        )
+        return {
+            "entities": entities_count or 0,
+            "relationships": relations_count or 0,
+            "timeline_events": timeline_count or 0
+        }
+
+    async def delete_evidence(self, evidence_id: uuid.UUID) -> None:
+        """Completely delete evidence and all associated AI-extracted data."""
+        from sqlalchemy import text
+        evidence = await self.repo.get_by_id(evidence_id)
+        if not evidence:
+            raise NotFoundError("Evidence", str(evidence_id))
+            
+        await self.db.execute(
+            text("""
+            DELETE FROM entity_relationships 
+            WHERE source_entity_id IN (SELECT id FROM entities WHERE evidence_id = :ev_id)
+               OR target_entity_id IN (SELECT id FROM entities WHERE evidence_id = :ev_id)
+            """),
+            {"ev_id": evidence_id}
+        )
+        
+        await self.db.execute(text("DELETE FROM timeline_events WHERE evidence_id = :ev_id"), {"ev_id": evidence_id})
+        await self.db.execute(text("DELETE FROM entities WHERE evidence_id = :ev_id"), {"ev_id": evidence_id})
+        await self.repo.delete(evidence)
+        await self.db.commit()
 
     async def get_evidence_list(self, case_id: uuid.UUID) -> list[EvidenceResponse]:
         items = await self.repo.get_by_case(case_id)
@@ -190,8 +268,24 @@ class EvidenceService:
         )
 
     async def get_entities(self, case_id: uuid.UUID) -> list[EntityResponse]:
+        from sqlalchemy import text
         items = await self.entity_repo.get_by_case(case_id)
-        return [EntityResponse.model_validate(e) for e in items]
+        responses = []
+        for e in items:
+            resp = EntityResponse.model_validate(e)
+            # Find if this entity exists in other cases
+            result = await self.db.execute(
+                text("""
+                    SELECT DISTINCT c.id, c.title, c.case_number 
+                    FROM entities e 
+                    JOIN cases c ON e.case_id = c.id 
+                    WHERE e.normalized_value = :val AND e.case_id != :cid
+                """),
+                {"val": e.normalized_value, "cid": case_id}
+            )
+            resp.cross_case_links = [{"id": row[0], "title": row[1], "case_number": row[2]} for row in result.all()]
+            responses.append(resp)
+        return responses
 
     async def get_timeline(self, case_id: uuid.UUID) -> list[TimelineEventResponse]:
         items = await self.timeline_repo.get_by_case(case_id)
@@ -248,7 +342,7 @@ class EvidenceService:
         entities = await self.entity_repo.get_by_case(case_id)
         evidence_list = await self.repo.get_by_case(case_id)
 
-        high_threat_entities = [e for e in entities if e.threat_relevance > 0.6]
+        high_threat_entities = [e for e in entities if e.threat_relevance >= 0.3]
         insights = []
 
         # Pattern: High-frequency person with high threat relevance
@@ -259,7 +353,7 @@ class EvidenceService:
                 id=f"threat-person-{top_person.id}",
                 title=f"High-activity subject: {top_person.value}",
                 description=f"Entity '{top_person.value}' appears {top_person.frequency}x across evidence files with elevated threat indicators.",
-                threat_level=ThreatLevel.HIGH if top_person.threat_relevance > 0.8 else ThreatLevel.MEDIUM,
+                threat_level=ThreatLevel.HIGH if top_person.threat_relevance > 0.6 else ThreatLevel.MEDIUM,
                 threat_score=top_person.threat_relevance,
                 entity_ids=[str(top_person.id)],
                 evidence_ids=[str(top_person.evidence_id)],
@@ -286,7 +380,7 @@ class EvidenceService:
         # Pattern: Communications cluster
         phones = [e for e in entities if e.entity_type.value == "PHONE"]
         emails = [e for e in entities if e.entity_type.value == "EMAIL"]
-        if len(phones) + len(emails) >= 3:
+        if len(phones) + len(emails) >= 1:
             insights.append(ThreatInsight(
                 id=f"threat-comms-{case_id}",
                 title="Communication network detected",

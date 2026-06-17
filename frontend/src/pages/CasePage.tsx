@@ -7,7 +7,7 @@ import {
   Upload, FileText, Image, Video, MessageSquare, File,
   ChevronLeft, Play, Clock, Users, Network, AlertTriangle,
   CheckCircle, Loader2, X, Eye, Shield, TrendingUp, Download,
-  Bot, Calendar, Copy,
+  Bot, Calendar, Copy, Trash2, RefreshCw, Link as LinkIcon
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { casesApi, evidenceApi, reportsApi, copilotApi } from '@/api/client'
@@ -51,6 +51,23 @@ export default function CasePage() {
   const queryClient = useQueryClient()
   const [uploadingFiles, setUploadingFiles] = useState<File[]>([])
   const [activeTab, setActiveTab] = useState<'evidence' | 'entities' | 'timeline' | 'graph' | 'threats' | 'copilot'>('evidence')
+  
+  // Deletion state
+  const [evidenceToDelete, setEvidenceToDelete] = useState<Evidence | null>(null)
+  const [evidenceImpact, setEvidenceImpact] = useState<{entities: number, relationships: number, timeline_events: number} | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const [isDeletingCase, setIsDeletingCase] = useState(false)
+  const [showCaseDeleteModal, setShowCaseDeleteModal] = useState(false)
+
+  const deleteCaseMutation = useMutation({
+    mutationFn: () => casesApi.delete(caseId!),
+    onSuccess: () => {
+      toast.success('Case deleted successfully')
+      navigate('/cases')
+    },
+    onError: () => toast.error('Failed to delete case')
+  })
 
   const { data: caseData, isLoading: caseLoading } = useQuery<Case>({
     queryKey: ['case', caseId],
@@ -68,7 +85,13 @@ export default function CasePage() {
 
   const uploadMutation = useMutation({
     mutationFn: (files: File[]) => evidenceApi.upload(caseId!, files),
-    onSuccess: () => {
+    onSuccess: (results) => {
+      // Check if any results had duplicate warnings
+      results.forEach(r => {
+        if (r.message.includes('Warning')) {
+          toast(r.message, { icon: '⚠️', duration: 6000 })
+        }
+      })
       toast.success(`${uploadingFiles.length} file(s) uploaded. Processing started...`)
       setUploadingFiles([])
       queryClient.invalidateQueries({ queryKey: ['evidence', caseId] })
@@ -76,6 +99,42 @@ export default function CasePage() {
     },
     onError: () => setUploadingFiles([]),
   })
+
+  const reprocessMutation = useMutation({
+    mutationFn: (evidenceId: string) => evidenceApi.reprocess(evidenceId),
+    onSuccess: () => {
+      toast.success('Reprocessing started')
+      queryClient.invalidateQueries({ queryKey: ['evidence', caseId] })
+    },
+    onError: () => toast.error('Failed to start reprocessing')
+  })
+
+  const confirmDelete = async (ev: Evidence) => {
+    setEvidenceToDelete(ev)
+    setEvidenceImpact(null)
+    try {
+      const impact = await evidenceApi.getImpact(ev.id)
+      setEvidenceImpact(impact)
+    } catch {
+      toast.error('Failed to load impact stats')
+    }
+  }
+
+  const handleDeleteEvidence = async () => {
+    if (!evidenceToDelete) return
+    setIsDeleting(true)
+    try {
+      await evidenceApi.delete(evidenceToDelete.id)
+      toast.success('Evidence deleted')
+      queryClient.invalidateQueries({ queryKey: ['evidence', caseId] })
+      queryClient.invalidateQueries({ queryKey: ['case', caseId] })
+      setEvidenceToDelete(null)
+    } catch {
+      toast.error('Failed to delete evidence')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   const onDrop = useCallback((accepted: File[]) => {
     setUploadingFiles(accepted)
@@ -169,6 +228,9 @@ export default function CasePage() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <button onClick={() => setShowCaseDeleteModal(true)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-100" title="Delete Case">
+              <Trash2 className="w-4 h-4" />
+            </button>
             <button onClick={downloadReport} className="btn-secondary flex items-center gap-2">
               <Download className="w-4 h-4" /> Export Report
             </button>
@@ -285,6 +347,7 @@ export default function CasePage() {
                         <th>Status</th>
                         <th>Threat</th>
                         <th>Uploaded</th>
+                        <th className="text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -321,6 +384,25 @@ export default function CasePage() {
                                 {formatDistanceToNow(new Date(ev.created_at))} ago
                               </span>
                             </td>
+                            <td className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => reprocessMutation.mutate(ev.id)}
+                                  disabled={reprocessMutation.isPending}
+                                  className="p-1.5 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                                  title="Re-run AI Processing"
+                                >
+                                  <RefreshCw className={`w-4 h-4 ${reprocessMutation.isPending ? 'animate-spin' : ''}`} />
+                                </button>
+                                <button
+                                  onClick={() => confirmDelete(ev)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Delete Evidence"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         )
                       })}
@@ -328,6 +410,81 @@ export default function CasePage() {
                   </table>
                 </div>
               )}
+
+              {/* Evidence Deletion Modal */}
+              <AnimatePresence>
+                {evidenceToDelete && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+                  >
+                    <motion.div
+                      initial={{ scale: 0.95, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.95, opacity: 0 }}
+                      className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+                    >
+                      <div className="p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-red-500" />
+                            Delete Evidence File
+                          </h3>
+                          <button onClick={() => setEvidenceToDelete(null)} className="text-slate-400 hover:text-slate-600">
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                        
+                        <p className="text-slate-600 mb-4">
+                          Are you sure you want to delete <strong>{evidenceToDelete.original_filename}</strong>?
+                        </p>
+
+                        {!evidenceImpact ? (
+                          <div className="flex items-center justify-center py-4 text-slate-500">
+                            <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                            Calculating destruction impact...
+                          </div>
+                        ) : (
+                          <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6">
+                            <p className="text-sm font-medium text-red-800 mb-2">This action will permanently destroy:</p>
+                            <ul className="space-y-1 text-sm text-red-700">
+                              <li className="flex items-center gap-2">
+                                <Users className="w-4 h-4" /> <strong>{evidenceImpact.entities}</strong> extracted entities
+                              </li>
+                              <li className="flex items-center gap-2">
+                                <Network className="w-4 h-4" /> <strong>{evidenceImpact.relationships}</strong> relationships
+                              </li>
+                              <li className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4" /> <strong>{evidenceImpact.timeline_events}</strong> timeline events
+                              </li>
+                            </ul>
+                          </div>
+                        )}
+
+                        <div className="flex justify-end gap-3 mt-6">
+                          <button
+                            onClick={() => setEvidenceToDelete(null)}
+                            className="btn-secondary"
+                            disabled={isDeleting}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleDeleteEvidence}
+                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2"
+                            disabled={isDeleting || !evidenceImpact}
+                          >
+                            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                            Yes, Delete Everything
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 
@@ -337,6 +494,80 @@ export default function CasePage() {
           {activeTab === 'threats' && <ThreatsTab caseId={caseId!} />}
           {activeTab === 'copilot' && <CopilotTab caseId={caseId!} />}
         </motion.div>
+      </AnimatePresence>
+
+      {/* Case Deletion Modal */}
+      <AnimatePresence>
+        {showCaseDeleteModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-500" />
+                    Delete Case
+                  </h3>
+                  <button onClick={() => setShowCaseDeleteModal(false)} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <p className="text-slate-600 mb-4">
+                  Are you sure you want to delete <strong>{caseData.title}</strong>?
+                </p>
+
+                <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6">
+                  <p className="text-sm font-medium text-red-800 mb-2">This action is irreversible and will destroy:</p>
+                  <ul className="space-y-1 text-sm text-red-700">
+                    <li className="flex items-center gap-2">
+                      <FileText className="w-4 h-4" /> <strong>{caseData.metrics?.total_evidence || 0}</strong> evidence files
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Users className="w-4 h-4" /> <strong>{caseData.metrics?.total_entities || 0}</strong> extracted entities
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Network className="w-4 h-4" /> <strong>{caseData.metrics?.total_relationships || 0}</strong> relationships
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" /> <strong>{caseData.metrics?.total_timeline_events || 0}</strong> timeline events
+                    </li>
+                  </ul>
+                  <p className="text-xs text-red-600 mt-3 italic text-center border-t border-red-200/50 pt-2">
+                    Cross-case links to these entities will also be broken.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => setShowCaseDeleteModal(false)}
+                    className="btn-secondary"
+                    disabled={deleteCaseMutation.isPending}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => deleteCaseMutation.mutate()}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2"
+                    disabled={deleteCaseMutation.isPending}
+                  >
+                    {deleteCaseMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Yes, Delete Case
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   )
@@ -402,7 +633,34 @@ function EntityTab({ caseId }: { caseId: string }) {
                   {entity.entity_type}
                 </span>
               </td>
-              <td className="font-mono text-sm text-slate-800 max-w-[200px] truncate">{entity.value}</td>
+              <td className="font-mono text-sm text-slate-800 max-w-[200px] truncate">
+                <div className="flex items-center gap-2">
+                  <span>{entity.value}</span>
+                  {entity.cross_case_links && entity.cross_case_links.length > 0 && (
+                    <div className="dropdown dropdown-hover dropdown-bottom dropdown-end">
+                      <div 
+                        tabIndex={0}
+                        role="button"
+                        className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded text-[10px] font-bold tracking-wide transition-colors hover:bg-indigo-100"
+                      >
+                        <LinkIcon className="w-3 h-3" />
+                        MATCH
+                      </div>
+                      <ul tabIndex={0} className="dropdown-content z-10 menu p-2 shadow-xl bg-white rounded-box w-52 border border-slate-200 mt-1">
+                        <li className="menu-title text-xs font-semibold text-slate-500 pb-1">Found in Cases:</li>
+                        {entity.cross_case_links.map(link => (
+                          <li key={link.id}>
+                            <Link to={`/cases/${link.id}`} className="flex flex-col items-start gap-0 py-1.5 px-3 hover:bg-slate-50">
+                              <span className="font-medium text-slate-800 text-sm truncate w-full">{link.title}</span>
+                              <span className="text-[10px] text-slate-500 font-mono tracking-wider">{link.case_number}</span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </td>
               <td>
                 <span className="text-slate-700 font-semibold">{entity.frequency}×</span>
               </td>

@@ -5,6 +5,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Search, Filter, FolderOpen, Clock, ChevronRight,
   FileText, Users, Network, X, AlertTriangle, Loader2,
+  Trash2, Calendar
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { casesApi } from '@/api/client'
@@ -143,10 +144,24 @@ function CreateCaseModal({ onClose }: { onClose: () => void }) {
 
 export default function CaseListPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<CaseStatus | ''>('')
+  
+  const [caseToDelete, setCaseToDelete] = useState<Case | null>(null)
+
+  const deleteCaseMutation = useMutation({
+    mutationFn: (id: string) => casesApi.delete(id),
+    onSuccess: () => {
+      toast.success('Case deleted successfully')
+      queryClient.invalidateQueries({ queryKey: ['cases'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] })
+      setCaseToDelete(null)
+    },
+    onError: () => toast.error('Failed to delete case')
+  })
 
   React.useEffect(() => {
     if (searchParams.get('create') === 'true') {
@@ -250,7 +265,19 @@ export default function CaseListPage() {
                     {c.status.replace('_', ' ')}
                   </span>
                 </div>
-                <span className="text-xs text-slate-600 font-mono">{c.case_number}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-600 font-mono">{c.case_number}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCaseToDelete(c);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete Case"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <h3 className="font-semibold text-slate-900 group-hover:text-primary-600 transition-colors line-clamp-2 mb-1">
@@ -302,6 +329,80 @@ export default function CaseListPage() {
       {/* Create Modal */}
       <AnimatePresence>
         {showCreate && <CreateCaseModal onClose={() => setShowCreate(false)} />}
+      </AnimatePresence>
+
+      {/* Case Deletion Modal */}
+      <AnimatePresence>
+        {caseToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-500" />
+                    Delete Case
+                  </h3>
+                  <button onClick={() => setCaseToDelete(null)} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <p className="text-slate-600 mb-4">
+                  Are you sure you want to delete <strong>{caseToDelete.title}</strong>?
+                </p>
+
+                <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-6">
+                  <p className="text-sm font-medium text-red-800 mb-2">This action is irreversible and will destroy:</p>
+                  <ul className="space-y-1 text-sm text-red-700">
+                    <li className="flex items-center gap-2">
+                      <FileText className="w-4 h-4" /> <strong>{caseToDelete.metrics?.total_evidence || 0}</strong> evidence files
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Users className="w-4 h-4" /> <strong>{caseToDelete.metrics?.total_entities || 0}</strong> extracted entities
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Network className="w-4 h-4" /> <strong>{caseToDelete.metrics?.total_relationships || 0}</strong> relationships
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" /> <strong>{caseToDelete.metrics?.total_timeline_events || 0}</strong> timeline events
+                    </li>
+                  </ul>
+                  <p className="text-xs text-red-600 mt-3 italic text-center border-t border-red-200/50 pt-2">
+                    Cross-case links to these entities will also be broken.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => setCaseToDelete(null)}
+                    className="btn-secondary"
+                    disabled={deleteCaseMutation.isPending}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => deleteCaseMutation.mutate(caseToDelete.id)}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2"
+                    disabled={deleteCaseMutation.isPending}
+                  >
+                    {deleteCaseMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Yes, Delete Case
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   )

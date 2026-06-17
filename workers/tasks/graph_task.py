@@ -27,7 +27,7 @@ def update_graph_task(case_id: str, entities: list[dict]):
         relationships = []
 
         # Person ↔ Person (co-occurrence)
-        for p1, p2 in combinations(persons[:10], 2):
+        for p1, p2 in combinations(persons[:50], 2):
             relationships.append({
                 "source": p1["normalized_value"],
                 "target": p2["normalized_value"],
@@ -38,8 +38,8 @@ def update_graph_task(case_id: str, entities: list[dict]):
             })
 
         # Person → Org
-        for person in persons[:5]:
-            for org in orgs[:5]:
+        for person in persons[:50]:
+            for org in orgs[:50]:
                 relationships.append({
                     "source": person["normalized_value"],
                     "target": org["normalized_value"],
@@ -50,8 +50,8 @@ def update_graph_task(case_id: str, entities: list[dict]):
                 })
 
         # Person → Location
-        for person in persons[:5]:
-            for loc in locations[:5]:
+        for person in persons[:50]:
+            for loc in locations[:50]:
                 relationships.append({
                     "source": person["normalized_value"],
                     "target": loc["normalized_value"],
@@ -62,8 +62,8 @@ def update_graph_task(case_id: str, entities: list[dict]):
                 })
 
         # Person → Phone/Email
-        for person in persons[:5]:
-            for contact in phones[:5]:
+        for person in persons[:50]:
+            for contact in phones[:50]:
                 relationships.append({
                     "source": person["normalized_value"],
                     "target": contact["normalized_value"],
@@ -74,8 +74,8 @@ def update_graph_task(case_id: str, entities: list[dict]):
                 })
 
         # Org → Location
-        for org in orgs[:5]:
-            for loc in locations[:5]:
+        for org in orgs[:50]:
+            for loc in locations[:50]:
                 relationships.append({
                     "source": org["normalized_value"],
                     "target": loc["normalized_value"],
@@ -86,8 +86,8 @@ def update_graph_task(case_id: str, entities: list[dict]):
                 })
 
         # Org → Phone/Email
-        for org in orgs[:5]:
-            for contact in phones[:5]:
+        for org in orgs[:50]:
+            for contact in phones[:50]:
                 relationships.append({
                     "source": org["normalized_value"],
                     "target": contact["normalized_value"],
@@ -99,7 +99,7 @@ def update_graph_task(case_id: str, entities: list[dict]):
 
         # General co-occurrence fallback
         if not relationships:
-            for e1, e2 in combinations(entities[:8], 2):
+            for e1, e2 in combinations(entities[:50], 2):
                 if e1["normalized_value"] != e2["normalized_value"]:
                     relationships.append({
                         "source": e1["normalized_value"],
@@ -143,7 +143,7 @@ def _save_relationships(case_id: str, entities: list[dict], relationships: list[
                 for row in result.fetchall()
             }
 
-            for rel in relationships[:50]:
+            for rel in relationships[:2000]:
                 src_key = (rel["source_type"], rel["source"])
                 tgt_key = (rel["target_type"], rel["target"])
                 src_id = entity_lookup.get(src_key)

@@ -121,6 +121,40 @@ async def copilot_query(
     return await svc.query(case_id, request)
 
 
+@router.post("/evidence/{evidence_id}/reprocess", response_model=EvidenceStatusResponse)
+async def reprocess_evidence(
+    evidence_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Reprocess an evidence file, clearing old extracted data."""
+    svc = EvidenceService(db)
+    await svc.reprocess_evidence(evidence_id)
+    return await svc.get_evidence_status(evidence_id)
+
+
+@router.get("/evidence/{evidence_id}/impact", response_model=dict)
+async def get_evidence_impact(
+    evidence_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Get count of entities/relations/events that will be lost on deletion."""
+    svc = EvidenceService(db)
+    return await svc.get_evidence_impact(evidence_id)
+
+
+@router.delete("/evidence/{evidence_id}", status_code=204)
+async def delete_evidence(
+    evidence_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Delete an evidence file and all associated AI-extracted data."""
+    svc = EvidenceService(db)
+    await svc.delete_evidence(evidence_id)
+
+
 @router.post("/cases/{case_id}/report/generate")
 async def generate_report(
     case_id: uuid.UUID,

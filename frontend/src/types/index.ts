@@ -97,6 +97,12 @@ export interface EvidenceStatus {
   estimated_completion_seconds: number | null
 }
 
+export interface CrossCaseLink {
+  id: string;
+  title: string;
+  case_number: string;
+}
+
 export interface Entity {
   id: string
   case_id: string
@@ -110,6 +116,7 @@ export interface Entity {
   is_primary: boolean
   threat_relevance: number
   created_at: string
+  cross_case_links: CrossCaseLink[]
 }
 
 export interface TimelineEvent {
