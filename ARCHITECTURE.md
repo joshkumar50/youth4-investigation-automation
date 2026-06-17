@@ -88,22 +88,22 @@ flowchart TD
     CreateDB --> PG[(Postgres)]:::storage
     CreateDB --> TriggerQueue[Dispatch to Celery Queue]:::process
     
-    TriggerQueue --> |evidence_processing| OCRTask[OCR & Extraction Task]:::process
+    TriggerQueue --> |evidence_processing| OCRTask["OCR & Extraction Task"]:::process
     
-    OCRTask --> HasText{Text Extracted?}
-    HasText -->|Yes| NLPTask[NLP Task\n(spaCy NER)]:::process
-    HasText -->|No| FailTask[Mark Record Failed]:::process
+    OCRTask --> HasText{"Text Extracted?"}
+    HasText -->|Yes| NLPTask["NLP Task\n(spaCy NER)"]:::process
+    HasText -->|No| FailTask["Mark Record Failed"]:::process
     
-    NLPTask --> ExtractEntities[Extract Persons, Phones, Orgs, Money]:::process
-    ExtractEntities --> EmbeddingTask[Embeddings Task\n(Sentence Transformers)]:::process
+    NLPTask --> ExtractEntities["Extract Persons, Phones, Orgs, Money"]:::process
+    ExtractEntities --> EmbeddingTask["Embeddings Task\n(Sentence Transformers)"]:::process
     EmbeddingTask --> Chroma[(ChromaDB)]:::storage
     
-    ExtractEntities --> TimelineTask[Timeline Extraction Task]:::process
-    TimelineTask --> GraphTask[Relationship Graphing Task]:::process
+    ExtractEntities --> TimelineTask["Timeline Extraction Task"]:::process
+    TimelineTask --> GraphTask["Relationship Graphing Task"]:::process
     
-    GraphTask --> ThreatScoring[Calculate Threat Score\n(Financial + Comms)]:::process
-    ThreatScoring --> MatchGlobal[Compute Global Cross-Case Links]:::process
-    MatchGlobal --> MarkComplete[Update DB Record: COMPLETED]:::process
+    GraphTask --> ThreatScoring["Calculate Threat Score\n(Financial + Comms)"]:::process
+    ThreatScoring --> MatchGlobal["Compute Global Cross-Case Links"]:::process
+    MatchGlobal --> MarkComplete["Update DB Record: COMPLETED"]:::process
     MarkComplete --> PG
 ```
 
