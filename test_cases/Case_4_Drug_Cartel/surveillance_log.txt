@@ -1,0 +1,3 @@
+[2026-01-10 10:00:00] Suspect Rohan Kumar connected to cartel database.
+[2026-01-10 10:05:00] Connection logged from IP address: 45.22.11.99.
+[2026-01-10 10:15:00] Data exfiltration detected. Suspect mentioned using the same infrastructure as the cyber ransomware crew.

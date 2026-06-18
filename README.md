@@ -24,6 +24,10 @@
 **Challenge 11: Digital Evidence & Investigation Automation**
 *Organized by Prakasam District Police in association with Techverza (Sraventix Technologies LLP)*
 
+### 👥 Team Durjay
+* **Chitteti JoshKumar** - chittetijoshkumar@gmail.com
+* **Kondaveeti Saisri** - saisrikondaveeti@gmail.com
+
 While this project is primarily designed for Challenge 11, its AI-powered relationship mapping and threat scoring capabilities also address core focus areas of **Challenge 12 (Organized Crime & Narcotics Intelligence)** and **Challenge 04 (Criminal Investigation & Suspect Tracking)**, making it a unified intelligence platform for law enforcement.
 
 ---

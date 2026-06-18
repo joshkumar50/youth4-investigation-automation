@@ -1,0 +1,12 @@
+From: rajesh.sharma@shellcorp-india.in
+To: igor.arms@yandex.ru
+Date: 2026-02-01 18:30:00
+Subject: Catalog Request
+
+Igor,
+We need the updated catalog for the shipment to Colombo. 
+Ensure the crates are marked as agricultural equipment, just like Vikram prefers.
+Payment will be routed through the Dubai VPN node as usual.
+
+Regards,
+Rajesh

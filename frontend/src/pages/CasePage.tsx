@@ -148,6 +148,7 @@ export default function CasePage() {
       'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff'],
       'video/*': ['.mp4', '.avi', '.mov', '.mkv'],
       'text/plain': ['.txt'],
+      'text/csv': ['.csv'],
       'application/json': ['.json'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
     },
@@ -316,7 +317,7 @@ export default function CasePage() {
                     <p className="text-slate-700 font-medium mb-1">Drop evidence files here or click to browse</p>
                     <p className="text-slate-500 text-sm">PDF, Images, Video, Documents, Chat exports — up to 500MB each</p>
                     <div className="flex justify-center gap-2 mt-3">
-                      {['PDF', 'PNG', 'MP4', 'DOCX', 'JSON'].map(t => (
+                      {['PDF', 'PNG', 'MP4', 'DOCX', 'JSON', 'CSV'].map(t => (
                         <span key={t} className="badge badge-neutral text-xs">{t}</span>
                       ))}
                     </div>
@@ -633,30 +634,22 @@ function EntityTab({ caseId }: { caseId: string }) {
                   {entity.entity_type}
                 </span>
               </td>
-              <td className="font-mono text-sm text-slate-800 max-w-[200px] truncate">
-                <div className="flex items-center gap-2">
-                  <span>{entity.value}</span>
+              <td className="font-mono text-sm text-slate-800 max-w-[300px]">
+                <div className="flex flex-col gap-1.5">
+                  <span className="truncate" title={entity.value}>{entity.value}</span>
                   {entity.cross_case_links && entity.cross_case_links.length > 0 && (
-                    <div className="dropdown dropdown-hover dropdown-bottom dropdown-end">
-                      <div 
-                        tabIndex={0}
-                        role="button"
-                        className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded text-[10px] font-bold tracking-wide transition-colors hover:bg-indigo-100"
-                      >
-                        <LinkIcon className="w-3 h-3" />
-                        MATCH
-                      </div>
-                      <ul tabIndex={0} className="dropdown-content z-10 menu p-2 shadow-xl bg-white rounded-box w-52 border border-slate-200 mt-1">
-                        <li className="menu-title text-xs font-semibold text-slate-500 pb-1">Found in Cases:</li>
-                        {entity.cross_case_links.map(link => (
-                          <li key={link.id}>
-                            <Link to={`/cases/${link.id}`} className="flex flex-col items-start gap-0 py-1.5 px-3 hover:bg-slate-50">
-                              <span className="font-medium text-slate-800 text-sm truncate w-full">{link.title}</span>
-                              <span className="text-[10px] text-slate-500 font-mono tracking-wider">{link.case_number}</span>
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
+                    <div className="flex flex-wrap gap-1">
+                      {entity.cross_case_links.map(link => (
+                        <Link 
+                          key={link.id} 
+                          to={`/cases/${link.id}`}
+                          className="flex items-center gap-1 px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded text-[10px] font-bold tracking-wide transition-colors hover:bg-indigo-100 hover:text-indigo-700"
+                          title={`Found in Case ID: ${link.case_number}`}
+                        >
+                          <LinkIcon className="w-3 h-3" />
+                          {link.title || link.case_number || 'MATCH'}
+                        </Link>
+                      ))}
                     </div>
                   )}
                 </div>
