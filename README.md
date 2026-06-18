@@ -1,5 +1,12 @@
 # Investigation Intelligence Platform (IIP)
 
+<p align="center">
+  <a href="#-problem"><strong>📖 README</strong></a> · 
+  <a href="./ARCHITECTURE.md"><strong>🏛️ Architecture</strong></a> · 
+  <a href="./API.md"><strong>💻 API Reference</strong></a> · 
+  <a href="./CONTRIBUTING.md"><strong>🤝 Contributing</strong></a>
+</p>
+
 <div align="center">
 
   
