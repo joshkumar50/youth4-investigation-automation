@@ -7,7 +7,6 @@
 
 <div align="center">
 
-  
   **AI-Powered Digital Evidence Investigation Platform**
   
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
@@ -15,6 +14,14 @@
   [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python)](https://python.org)
   [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker)](https://docker.com)
   [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+
+  <br />
+  
+  <img src="docs/screenshots/dashboard.png" alt="Platform Dashboard" width="800" />
+  <br /><br />
+  <img src="docs/screenshots/login.png" alt="Secure Login" width="800" />
+  
+  <br />
 </div>
 
 ---
@@ -224,14 +231,6 @@ pytest tests/ -v --cov=app
 ## 📖 Documentation
 
 - [Architecture Guide](ARCHITECTURE.md)
-- [API Reference](API.md)
-- [Contributing Guide](CONTRIBUTING.md)
-
----
-
-## 📄 License
-
-MIT License — see [LICENSE](LICENSE)
 
 ---
 
