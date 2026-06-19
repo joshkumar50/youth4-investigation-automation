@@ -16,7 +16,7 @@
 
   <br />
   
-  <img src="docs/screenshots/Dashboard.png" alt="Platform Dashboard" width="800" />
+  <img src="docs/screenshots/dashboard.png" alt="Platform Dashboard" width="800" />
   
   <br />
 </div>
