@@ -13,13 +13,20 @@
   [![React](https://img.shields.io/badge/React-18.3-61DAFB?style=flat-square&logo=react)](https://reactjs.org)
   [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat-square&logo=python)](https://python.org)
   [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker)](https://docker.com)
-  [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
   <br />
   
-  <img src="docs/screenshots/dashboard.png" alt="Platform Dashboard" width="800" />
-  <br /><br />
-  <img src="docs/screenshots/login.png" alt="Secure Login" width="800" />
+  ### 📊 Platform Dashboard
+  <img src="docs/screenshots/dashboard_view.png" alt="Platform Dashboard" width="800" />
+  
+  ### 🕸️ Relationship Intelligence Graph
+  <img src="docs/screenshots/network_graph.png" alt="Relationship Intelligence Graph" width="800" />
+  
+  ### 🤖 AI Investigation Copilot
+  <img src="docs/screenshots/copilot_view.png" alt="AI Investigation Copilot" width="800" />
+  
+  ### 📅 Automated Timeline Reconstruction
+  <img src="docs/screenshots/timeline_view.png" alt="Automated Timeline Reconstruction" width="800" />
   
   <br />
 </div>
