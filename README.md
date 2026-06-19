@@ -16,17 +16,7 @@
 
   <br />
   
-  ### 📊 Platform Dashboard
-  <img src="docs/screenshots/dashboard_view.png" alt="Platform Dashboard" width="800" />
-  
-  ### 🕸️ Relationship Intelligence Graph
-  <img src="docs/screenshots/network_graph.png" alt="Relationship Intelligence Graph" width="800" />
-  
-  ### 🤖 AI Investigation Copilot
-  <img src="docs/screenshots/copilot_view.png" alt="AI Investigation Copilot" width="800" />
-  
-  ### 📅 Automated Timeline Reconstruction
-  <img src="docs/screenshots/timeline_view.png" alt="Automated Timeline Reconstruction" width="800" />
+  <img src="docs/screenshots/Dashboard.png" alt="Platform Dashboard" width="800" />
   
   <br />
 </div>
@@ -125,6 +115,20 @@ FastAPI Backend
 | ⚠️ Threat Intelligence | Composite threat scoring & prioritization (Financial & Communication networks) |
 | 🤖 Copilot | AI-powered investigation assistant (Llama 3 + RAG) |
 | 📄 Report Export | Professional PDF investigation reports |
+
+<br />
+
+### 🕸️ Relationship Intelligence Graph
+<img src="docs/screenshots/network_graph.png" alt="Relationship Intelligence Graph" width="800" />
+
+### 🤖 AI Investigation Copilot
+<img src="docs/screenshots/Copilot.png" alt="AI Investigation Copilot" width="800" />
+
+### 📅 Automated Timeline Reconstruction
+<img src="docs/screenshots/Timeline.png" alt="Automated Timeline Reconstruction" width="800" />
+
+### 🔐 Secure Access
+<img src="docs/screenshots/login.png" alt="Secure Access" width="800" />
 
 ---
 
