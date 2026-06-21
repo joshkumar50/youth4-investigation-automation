@@ -44,7 +44,7 @@ def update_graph_task(case_id: str, entities: list[dict]):
                     "source": person["normalized_value"],
                     "target": org["normalized_value"],
                     "source_type": "PERSON",
-                    "target_type": "ORG",
+                    "target_type": org["entity_type"],
                     "relationship_type": "associated_with",
                     "weight": 1.2,
                 })
@@ -56,7 +56,7 @@ def update_graph_task(case_id: str, entities: list[dict]):
                     "source": person["normalized_value"],
                     "target": loc["normalized_value"],
                     "source_type": "PERSON",
-                    "target_type": "GPE",
+                    "target_type": loc["entity_type"],
                     "relationship_type": "located_in",
                     "weight": 0.8,
                 })
@@ -157,10 +157,15 @@ def _save_relationships(case_id: str, entities: list[dict], relationships: list[
                         INSERT INTO entity_relationships
                             (id, case_id, source_entity_id, target_entity_id,
                              relationship_type, weight, evidence_count, created_at)
-                        VALUES
-                            (gen_random_uuid(), :case_id, :src_id, :tgt_id,
-                             :rel_type, :weight, 1, now())
-                        ON CONFLICT DO NOTHING
+                        SELECT
+                            gen_random_uuid(), :case_id, :src_id, :tgt_id,
+                             :rel_type, :weight, 1, now()
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM entity_relationships 
+                            WHERE case_id = :case_id 
+                            AND ((source_entity_id = :src_id AND target_entity_id = :tgt_id) 
+                              OR (source_entity_id = :tgt_id AND target_entity_id = :src_id))
+                        )
                     """),
                     {
                         "case_id": case_id,

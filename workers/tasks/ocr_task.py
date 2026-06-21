@@ -107,7 +107,7 @@ def _ocr_image_bytes(data: bytes) -> str:
         img = Image.open(io.BytesIO(data))
         # Enhance image for better OCR
         img = img.convert("L")  # Grayscale
-        text = pytesseract.image_to_string(img, config="--oem 3 --psm 6")
+        text = pytesseract.image_to_string(img, lang="tel+eng", config="--oem 3 --psm 6")
         return text.strip()
     except Exception as e:
         logger.warning(f"Tesseract OCR failed: {e}")

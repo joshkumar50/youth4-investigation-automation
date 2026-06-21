@@ -67,35 +67,53 @@ def extract_entities_task(evidence_id: str, case_id: str, text: str) -> list[dic
         return []
 
     entities = []
+    semantic_relationships = []
 
-    # ── spaCy NER ──
-    nlp = get_nlp()
-    if nlp:
-        try:
-            # Process in chunks if text is large
-            chunk_size = 100000
-            for i in range(0, min(len(text), 500000), chunk_size):
-                chunk = text[i:i + chunk_size]
-                doc = nlp(chunk)
-                for ent in doc.ents:
-                    if ent.label_ in ("PERSON", "ORG", "GPE", "DATE", "TIME", "EVENT", "MONEY", "CARDINAL"):
-                        context_start = max(0, ent.start_char - 80)
-                        context_end = min(len(chunk), ent.end_char + 80)
-                        context = chunk[context_start:context_end].strip()
+    # ── NER Extraction ──
+    # Route non-English (Indic) text to Ollama for translation + extraction
+    if re.search(r'[\u0900-\u0D7F]', text):
+        # Process large documents in chunks so the local LLM doesn't timeout
+        chunk_size = 4000
+        for i in range(0, min(len(text), 40000), chunk_size):
+            chunk = text[i:i + chunk_size]
+            if len(chunk.strip()) < 10:
+                continue
+            try:
+                ollama_entities, ollama_rels = _extract_entities_ollama(chunk)
+                entities.extend(ollama_entities)
+                semantic_relationships.extend(ollama_rels)
+            except Exception as e:
+                logger.error(f"Ollama NER failed on chunk {i}: {e}")
+    else:
+        # Use fast spaCy for standard English text
+        nlp = get_nlp()
+        if nlp:
+            try:
+                # Process in chunks if text is large
+                chunk_size = 100000
+                for i in range(0, min(len(text), 500000), chunk_size):
+                    chunk = text[i:i + chunk_size]
+                    doc = nlp(chunk)
+                    
+                    for ent in doc.ents:
+                        if ent.label_ in ("PERSON", "ORG", "GPE", "DATE", "TIME", "EVENT", "MONEY", "CARDINAL"):
+                            context_start = max(0, ent.start_char - 80)
+                            context_end = min(len(chunk), ent.end_char + 80)
+                            context = chunk[context_start:context_end].strip()
 
-                        threat_score = _compute_threat_score(ent.text, context)
+                            threat_score = _compute_threat_score(ent.text, context)
 
-                        entities.append({
-                            "entity_type": _map_spacy_label(ent.label_),
-                            "value": ent.text.strip(),
-                            "normalized_value": ent.text.strip().lower(),
-                            "confidence": 0.85,
-                            "context": context,
-                            "threat_relevance": threat_score,
-                            "source": "spacy",
-                        })
-        except Exception as e:
-            logger.error(f"spaCy NER failed: {e}")
+                            entities.append({
+                                "entity_type": _map_spacy_label(ent.label_),
+                                "value": ent.text.strip(),
+                                "normalized_value": ent.text.strip().lower(),
+                                "confidence": 0.85,
+                                "context": context,
+                                "threat_relevance": threat_score,
+                                "source": "spacy",
+                            })
+            except Exception as e:
+                logger.error(f"spaCy NER failed: {e}")
 
     # ── Regex patterns ──
     for entity_type, pattern in PATTERNS.items():
@@ -135,6 +153,8 @@ def extract_entities_task(evidence_id: str, case_id: str, text: str) -> list[dic
 
     # Persist to DB
     _save_entities(evidence_id, case_id, unique_entities[:2000])
+    if semantic_relationships:
+        _save_semantic_relationships(case_id, semantic_relationships)
     return unique_entities
 
 
@@ -219,3 +239,130 @@ def _save_entities(evidence_id: str, case_id: str, entities: list[dict]):
         logger.info(f"Saved {len(entities)} entities for evidence {evidence_id}")
     except Exception as e:
         logger.error(f"Failed to save entities: {e}")
+
+
+def _save_semantic_relationships(case_id: str, relationships: list[dict]):
+    """Persist semantic relationships extracted by LLM to PostgreSQL."""
+    if not relationships:
+        return
+    try:
+        from sqlalchemy import create_engine, text
+        DATABASE_URL = os.getenv(
+            "DATABASE_URL",
+            "postgresql+psycopg2://iip_user:iip_secret_2024@localhost:5432/investigation_db"
+        ).replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+
+        engine = create_engine(DATABASE_URL)
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT id, normalized_value FROM entities WHERE case_id = :case_id"),
+                {"case_id": case_id}
+            )
+            entity_lookup = {
+                row[1]: str(row[0])
+                for row in result.fetchall()
+            }
+
+            for rel in relationships:
+                src_id = entity_lookup.get(rel.get("source", "").lower())
+                tgt_id = entity_lookup.get(rel.get("target", "").lower())
+
+                if not src_id or not tgt_id or src_id == tgt_id:
+                    continue
+
+                conn.execute(
+                    text("""
+                        INSERT INTO entity_relationships
+                            (id, case_id, source_entity_id, target_entity_id,
+                             relationship_type, weight, evidence_count, created_at)
+                        VALUES
+                            (gen_random_uuid(), :case_id, :src_id, :tgt_id,
+                             :rel_type, :weight, 1, now())
+                        ON CONFLICT DO NOTHING
+                    """),
+                    {
+                        "case_id": case_id,
+                        "src_id": src_id,
+                        "tgt_id": tgt_id,
+                        "rel_type": rel.get("relationship_type", "associated_with").lower(),
+                        "weight": 2.0,
+                    }
+                )
+            conn.commit()
+        logger.info(f"Saved {len(relationships)} semantic relationships for case {case_id}")
+    except Exception as e:
+        logger.error(f"Failed to save semantic relationships: {e}")
+
+
+def _extract_entities_ollama(text: str) -> tuple[list[dict], list[dict]]:
+    """Call Ollama for multilingual NER and semantic relationships using JSON mode."""
+    import requests
+    import json
+    
+    prompt = f"""You are a digital forensics AI. 
+TASK 1: Extract EVERY SINGLE PERSON, ORGANIZATION, and LOCATION from the text. Be exhaustive. Do not miss any.
+TASK 2: If the text is not in English, transliterate the names into standard English characters (e.g., శ్రీచరణ్ -> Sri Charan).
+TASK 3: Extract semantic relationships between the PERSON entities you found.
+
+Respond ONLY with a JSON object containing two keys: "entities" (array) and "relationships" (array).
+
+"entities" objects must have:
+- "entity_type": exactly "PERSON", "ORGANIZATION", or "LOCATION"
+- "value": original string
+- "normalized_value": English transliteration (in lowercase)
+- "context": short 5-10 word snippet
+
+"relationships" objects must have:
+- "source": the normalized_value of the first PERSON
+- "target": the normalized_value of the second PERSON
+- "relationship_type": the actual semantic relationship (e.g., "father", "daughter", "wife", "husband", "friend")
+
+Text to analyze:
+{text}"""
+
+    response = requests.post(
+        f"{os.getenv('OLLAMA_BASE_URL', 'http://ollama:11434')}/api/generate",
+        json={
+            "model": os.getenv("OLLAMA_MODEL", "llama3"),
+            "prompt": prompt,
+            "format": "json",
+            "stream": False,
+            "options": {
+                "temperature": 0.0,
+                "seed": 42,
+                "num_predict": 1024
+            },
+        },
+        timeout=300,  # Increased from 120s to 300s for slower local machines
+    )
+    
+    entities = []
+    relationships = []
+    if response.status_code == 200:
+        data = response.json().get("response", "{}")
+        try:
+            parsed = json.loads(data)
+            extracted = parsed.get("entities", [])
+            relationships = parsed.get("relationships", [])
+            for ent in extracted:
+                val = ent.get("value", "")
+                norm = ent.get("normalized_value", "").lower()
+                ctx = ent.get("context", "")
+                etype = ent.get("entity_type", "OTHER")
+                if etype not in ["PERSON", "ORGANIZATION", "LOCATION"]:
+                    etype = "OTHER"
+                    
+                if val and norm:
+                    threat_score = _compute_threat_score(val, ctx)
+                    entities.append({
+                        "entity_type": etype,
+                        "value": val,
+                        "normalized_value": norm,
+                        "confidence": 0.88,
+                        "context": ctx,
+                        "threat_relevance": threat_score,
+                        "source": "ollama",
+                    })
+        except json.JSONDecodeError:
+            logger.warning("Ollama returned invalid JSON format for entities.")
+    return entities, relationships

@@ -106,11 +106,11 @@ FastAPI Backend
 | 📊 Dashboard | Real-time investigation metrics & impact |
 | 📂 Case Management | Isolated workspaces per case with secure deletion & impact analysis |
 | 📤 Evidence Upload | Multi-file drag-and-drop with auto-processing |
-| 🔍 OCR Extraction | Tesseract + PyMuPDF with EXIF/metadata |
+| 🔍 OCR Extraction | Multilingual Tesseract + PyMuPDF with EXIF/metadata (English, Telugu) |
 | 🏷️ Categorization | ML-based evidence categorization |
-| 👤 Entity Extraction | spaCy NER + regex (Global support for INR, Persons, Phones, Emails) |
+| 👤 Entity Extraction | AI Router (Fast spaCy for English, Llama 3 for Indic languages + Transliteration) |
 | 📅 Timeline | Automatic temporal event reconstruction |
-| 🕸️ Relationship Graph | Entity co-occurrence network visualization |
+| 🕸️ Relationship Graph | Deep Semantic Relationship Network (e.g. "father", "associate") & Co-occurrence |
 | 🔗 Cross-Case Matching | Global match indicators for entities spanning multiple isolated cases |
 | ⚠️ Threat Intelligence | Composite threat scoring & prioritization (Financial & Communication networks) |
 | 🤖 Copilot | AI-powered investigation assistant (Llama 3 + RAG) |
