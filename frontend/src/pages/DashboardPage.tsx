@@ -72,6 +72,14 @@ export default function DashboardPage() {
     ? Object.entries(metrics.cases_by_priority).map(([name, value]) => ({ name, value }))
     : []
 
+  const activityData = metrics && metrics.total_cases > 0
+    ? MOCK_ACTIVITY
+    : [
+        { time: '00:00', cases: 0 }, { time: '04:00', cases: 0 },
+        { time: '08:00', cases: 0 }, { time: '12:00', cases: 0 },
+        { time: '16:00', cases: 0 }, { time: '20:00', cases: 0 }, { time: '23:59', cases: 0 },
+      ]
+
   return (
     <div className="page animate-fade-in">
       {/* Header */}
@@ -157,7 +165,7 @@ export default function DashboardPage() {
             <div className="badge badge-info"><Activity className="w-3 h-3" /> Live</div>
           </div>
           <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={MOCK_ACTIVITY}>
+            <AreaChart data={activityData}>
               <defs>
                 <linearGradient id="actGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
